@@ -1,92 +1,103 @@
-# Tamagotchi FPGA — iCESugar (iCE40UP5K)
+# TAMAGOTCHI — DIY Virtual Pet
 
-A virtual pet implemented entirely in hardware using Verilog on the
-Lattice iCE40UP5K FPGA. No CPU, no software — pure digital logic.
+A fully functional Tamagotchi clone built with Arduino Nano.
 
-## Project structure
+## Hardware Required
+
+| Part                          | Pin        | Notes                     |
+|-------------------------------|------------|---------------------------|
+| Arduino Nano                  | —          | Brain (ATmega328P)        |
+| SSD1306 OLED 0.96" (I2C)     | A4, A5     | 128×64 pixels             |
+| Tactile Button × 3           | D2, D3, D4 | Left, Middle, Right       |
+| 10kΩ Resistor × 3            | —          | Pull-down for each button |
+| Passive Piezo Buzzer          | D9         | PWM for tones             |
+| Breadboard + Jumper Wires     | —          | For prototyping           |
+
+## Wiring Diagram
 
 ```
-tamagotchi-ice40/
-├── Makefile              # Build system (make → program)
-├── icesugar.pcf          # Pin constraints (which wire → which pin)
-├── rtl/
-│   ├── tamagotchi_top.v  # Top-level: wires everything together
-│   ├── clock_divider.v   # Internal 48MHz osc → 12MHz/1Hz/4Hz
-│   ├── btn_debounce.v    # Cleans noisy button signals
-│   ├── game_fsm.v        # Pet state machine (the brain)
-│   ├── sprite_rom.v      # Pixel art bitmap storage
-│   ├── spi_master.v      # SPI protocol for OLED
-│   ├── buzzer_pwm.v      # Tone generator for buzzer
-│   └── display_controller.v  # TODO: framebuffer + SPI sequencer
-└── tb/
-    └── tamagotchi_tb.v   # TODO: simulation testbench
+OLED Display:
+  VCC → 5V
+  GND → GND
+  SDA → A4
+  SCL → A5
+
+Buttons (each one):
+  5V ─── [BUTTON] ──┬── D2 / D3 / D4
+                     │
+                   [10kΩ]
+                     │
+                    GND
+
+Buzzer:
+  (+) → D9
+  (-) → GND
 ```
 
-## Hardware required
+## Software Setup
 
-- iCESugar FPGA board (iCE40UP5K)
-- SSD1306 0.96" OLED (SPI mode, 128x64)
-- 3x tactile buttons + 3x 10kΩ resistors
-- Passive piezo buzzer
-- Jumper wires
+1. Install Arduino IDE (https://www.arduino.cc/en/software)
+2. Open Library Manager (Sketch → Include Library → Manage Libraries)
+3. Install these libraries:
+   - **Adafruit SSD1306** (by Adafruit)
+   - **Adafruit GFX Library** (by Adafruit)
+4. Open `tamagotchi.ino`
+5. Select Board: **Arduino Nano**
+6. Select Processor: **ATmega328P** (or "Old Bootloader" for clones)
+7. Select your COM port
+8. Upload!
 
-## Build & program
+## How to Play
 
-```bash
-# Install toolchain (macOS)
-brew install yosys nextpnr icestorm
+### Controls
+- **LEFT button (D2)**: Navigate menu left
+- **MIDDLE button (D3)**: Select / Confirm
+- **RIGHT button (D4)**: Navigate menu right
 
-# Build bitstream
-make
+### Menu Options
+| Option | Action                                    |
+|--------|-------------------------------------------|
+| FEED   | Reduces hunger, slight happiness boost    |
+| PLAY   | Big happiness boost, slight hunger cost   |
+| CLEAN  | Removes poop (cleanliness affects health) |
+| STATS  | Shows detailed stats screen               |
 
-# Program (drag-and-drop)
-# Copy build/tamagotchi.bin onto the iCELink USB drive in Finder
+### Pet States
+- **Happy**: Bouncing animation — pet is doing well!
+- **Hungry**: Frowning face — hunger is above 70%
+- **Sick**: X-eyes — health has dropped below 30%
+- **Sleeping**: Closed eyes + ZZZ — pet is resting
+- **Dead**: Game over — press MIDDLE to restart
 
-# Or program via command line
-make flash
-```
+### Tips
+- Feed regularly before hunger bar empties
+- Clean poop quickly — it damages health over time
+- Playing keeps happiness up but makes the pet hungrier
+- Health regenerates when hunger is low AND poop is cleaned
 
-## Module descriptions
+## Customization Ideas
 
-| Module             | LUTs (est.) | What it does                              |
-|--------------------|-------------|-------------------------------------------|
-| clock_divider      | ~50         | Generates 12MHz, 1Hz, 4Hz from internal osc |
-| btn_debounce (×3)  | ~40 each    | Shift-register debouncing + edge detect   |
-| game_fsm           | ~300        | Pet states, counters, menu, sound triggers |
-| sprite_rom         | ~200        | 9 sprites stored as LUT-based ROM         |
-| spi_master         | ~80         | 8-bit SPI Mode 0 shift register           |
-| display_controller | ~200        | Reads sprites, builds screen, feeds SPI   |
-| buzzer_pwm         | ~30         | Programmable frequency square wave        |
-| **Total**          | **~1000**   | **Out of 5,280 available (19% used)**     |
+- **Speed**: Change `TICK_INTERVAL` (default 5000ms for testing, set to 60000 for real-time)
+- **Difficulty**: Adjust hunger/happiness change rates in `updatePetState()`
+- **Sprites**: Edit the bitmap arrays to create your own pixel art creature
+- **Sounds**: Modify the `beep*()` functions with different frequencies
+- **Mini-games**: Add a simple reaction game in `playWithPet()`
 
-## Wiring
+## Creating Custom Sprites
 
-### PMOD 1 → OLED (SPI mode)
-| PMOD pin | iCE40 pin | Signal    |
-|----------|-----------|-----------|
-| 1        | 4         | SCLK      |
-| 2        | 2         | MOSI      |
-| 3        | 47        | CS        |
-| 4        | 45        | DC        |
-| 5        | 3         | RES       |
-| 3V3      | —         | VCC       |
-| GND      | —         | GND       |
+Each 16×16 sprite is stored as 32 bytes (2 bytes per row).
+Use an online tool like:
+- https://www.pixilart.com (draw 16x16)
+- https://javl.github.io/image2cpp/ (convert PNG to byte array)
 
-### PMOD 3 → Buttons + Buzzer
-| PMOD pin | iCE40 pin | Signal    |
-|----------|-----------|-----------|
-| 1        | 27        | BTN Left  |
-| 2        | 25        | BTN Mid   |
-| 3        | 21        | BTN Right |
-| 4        | 19        | Buzzer    |
-| GND      | —         | Common GND |
+Export as "Arduino code" format, paste into the sprite arrays.
 
-## Remaining work
+## Phase 2: FPGA Port
 
-The `display_controller.v` module is the final piece — it needs to:
-1. Send the SSD1306 initialization command sequence over SPI
-2. Read game state and sprite ROM to build pixel data
-3. Stream the framebuffer to the OLED page by page
-
-This is the most complex module. A good approach is to implement
-it as a multi-stage FSM: INIT → RENDER → SEND → WAIT → RENDER...
+Once the MCU version works, the game logic (state machine, timers, display
+driver) can be ported to Verilog for an FPGA like the Tang Nano 9K.
+This makes an excellent VLSI portfolio project demonstrating:
+- FSM design (pet states)
+- SPI/I2C peripheral interfacing (OLED driver)
+- Timer/counter design (real-time pet aging)
+- Memory management (sprite ROM)
