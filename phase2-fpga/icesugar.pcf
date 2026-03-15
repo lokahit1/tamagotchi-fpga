@@ -1,0 +1,3 @@
+# iCESugar onboard RGB LED (active low)
+# Just using the green channel for our blink demo
+set_io led 41
